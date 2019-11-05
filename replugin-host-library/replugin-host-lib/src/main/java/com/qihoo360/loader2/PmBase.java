@@ -545,7 +545,7 @@ class PmBase {
         if (!TextUtils.isEmpty(className) && !TextUtils.isEmpty(plugin)) {
             DynamicClass dc = mDynamicClasses.get(className);
             if (dc != null) {
-                return plugin.equals(dc.plugin);
+                return plugin.equals(dc.plugin) || getPlugin(plugin) == getPlugin(dc.plugin);
             }
         }
         return false;

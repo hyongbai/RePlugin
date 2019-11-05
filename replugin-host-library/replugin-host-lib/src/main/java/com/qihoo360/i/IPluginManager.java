@@ -52,6 +52,15 @@ public interface IPluginManager {
     String KEY_PROCESS = "process";
 
     /**
+     * 用以标记是否是动态class方式启动的Activity。
+     * 目前逻辑以动态方式启动Activity会导致intent中并没有坑位信息，导致
+     * {@link com.qihoo360.loader2.PluginLibraryInternalProxy#handleActivityCreate(Activity, Bundle)}
+     * 校验是否跑飞时，执行activity自杀逻辑。
+     * TODO: 重新动态class方案
+     */
+    String KEY_DYNAMIC = "rp_dynamic";
+
+    /**
      * 自动分配插件进程
      */
     int PROCESS_AUTO = Integer.MIN_VALUE;

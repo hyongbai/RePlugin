@@ -114,7 +114,7 @@ public class PluginLibraryInternalProxy {
         // 1. 从Intent里取。通常是明确知道要打开的插件时会用
         // 2. 根据当前Activity的坑位名来“反查”其插件名。通常是插件内开启自己的Activity时用到
         // 3. 通过获得Context的类加载器来判断其插件名
-        String plugin = intent.getStringExtra(IPluginManager.KEY_PLUGIN);
+        final String plugin = fetchPluginName(context, intent);
 
         /* 检查是否是动态注册的类 */
         // 如果要启动的 Activity 是动态注册的类，则不使用坑位机制，而是直接动态类。
@@ -128,26 +128,12 @@ public class PluginLibraryInternalProxy {
 	        }
 	        if (isDynamicClass(plugin, componentName.getClassName())) {
                 intent.putExtra(IPluginManager.KEY_COMPATIBLE, true);
+                intent.putExtra(IPluginManager.KEY_DYNAMIC, true);
 	            intent.setComponent(new ComponentName(IPC.getPackageName(), componentName.getClassName()));
 	            context.startActivity(intent);
 	            return false;
 	        }
 		}
-
-        if (TextUtils.isEmpty(plugin)) {
-            // 看下Context是否为Activity，如是则直接从坑位中获取插件名（最准确）
-            if (context instanceof Activity) {
-                plugin = fetchPluginByPitActivity((Activity) context);
-            }
-            if (LOG) {
-                LogDebug.d(PLUGIN_TAG, "start context: custom plugin is empty, query plugin=" + plugin);
-            }
-        }
-
-        // 没拿到插件名？再从 ClassLoader 获取插件名称（兜底）
-        if (TextUtils.isEmpty(plugin)) {
-            plugin = RePlugin.fetchPluginNameByClassLoader(context.getClassLoader());
-        }
 
         // 仍然拿不到插件名？（例如从宿主中调用），则打开的Activity可能是宿主的。直接使用标准方式启动
         if (TextUtils.isEmpty(plugin)) {
@@ -165,6 +151,25 @@ public class PluginLibraryInternalProxy {
 
         // 调用“特殊版”的startActivity，不让自动填写ComponentName，防止外界再用时出错
         return Factory.startActivityWithNoInjectCN(context, intent, plugin, name, process);
+    }
+
+    private String fetchPluginName(Context context, Intent intent) {
+        String plugin = intent != null ? intent.getStringExtra(IPluginManager.KEY_PLUGIN) : null;
+        if (TextUtils.isEmpty(plugin)) {
+            // 看下Context是否为Activity，如是则直接从坑位中获取插件名（最准确）
+            if (context instanceof Activity) {
+                plugin = fetchPluginByPitActivity((Activity) context);
+            }
+            if (LOG) {
+                LogDebug.d(PLUGIN_TAG, "start context: custom plugin is empty, query plugin=" + plugin);
+            }
+        }
+
+        // 没拿到插件名？再从 ClassLoader 获取插件名称（兜底）
+        if (TextUtils.isEmpty(plugin)) {
+            plugin = RePlugin.fetchPluginNameByClassLoader(context.getClassLoader());
+        }
+        return plugin;
     }
 
     // 通过Activity坑位来获取插件名
@@ -328,6 +333,10 @@ public class PluginLibraryInternalProxy {
         }
         String name = cn.getClassName();
 
+        if(intent.getBooleanExtra(IPluginManager.KEY_DYNAMIC, false)){
+            return false;
+        }
+
         ComponentName cnNew = loadPluginActivity(intent, plugin, name, IPluginManager.PROCESS_AUTO);
         if (cnNew == null) {
             return false;
@@ -460,7 +469,7 @@ public class PluginLibraryInternalProxy {
      */
     public void handleActivityCreate(Activity activity, Bundle savedInstanceState) {
         if (LOG) {
-            LogDebug.d(PLUGIN_TAG, "activity create: " + activity.getClass().getName() + " this=" + activity.hashCode() + " taskid=" + activity.getTaskId());
+            LogDebug.d(PLUGIN_TAG, "handleActivityCreate: " + activity.getClass().getName() + "@{" + activity.hashCode() + "}， taskid=" + activity.getTaskId());
         }
 
         if (activity.getIntent() != null) {
@@ -486,7 +495,10 @@ public class PluginLibraryInternalProxy {
                     if (LOGR) {
                         LogRelease.w(PLUGIN_TAG, "a.c.1: a=" + activityName + " l=" + activity.getClass().getName());
                     }
-                    PMF.forward(activity, intent);
+                    if (!intent.getBooleanExtra(IPluginManager.KEY_DYNAMIC, false)) {
+                        // dynamic方式启动activity，不执行自杀。
+                        PMF.forward(activity, intent);
+                    }
                     return;
                 }
                 if (LOG) {
