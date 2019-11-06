@@ -119,21 +119,19 @@ public class PluginLibraryInternalProxy {
         /* 检查是否是动态注册的类 */
         // 如果要启动的 Activity 是动态注册的类，则不使用坑位机制，而是直接动态类。
         // 原因：宿主的某些动态注册的类不能运行在坑位中（如'桌面'插件的入口Activity）
-        ComponentName componentName = intent.getComponent();
+        final ComponentName componentName = intent.getComponent();
         if (componentName != null) {
-
-	        if (LogDebug.LOG) {
-	            LogDebug.d("loadClass", "isHookingClass(" + plugin + "," + componentName.getClassName() + ") = "
-	                    + isDynamicClass(plugin, componentName.getClassName()));
-	        }
-	        if (isDynamicClass(plugin, componentName.getClassName())) {
+            final boolean isDynamic = isDynamicClass(plugin, componentName.getClassName());
+            if (LogDebug.LOG) {
+                LogDebug.d("startActivity", "isDynamic(" + plugin + "," + componentName.getClassName() + ") = " + isDynamic);
+            }
+            if (isDynamic) {
                 intent.putExtra(IPluginManager.KEY_COMPATIBLE, true);
                 intent.putExtra(IPluginManager.KEY_DYNAMIC, true);
-	            intent.setComponent(new ComponentName(IPC.getPackageName(), componentName.getClassName()));
-	            context.startActivity(intent);
-	            return false;
-	        }
-		}
+                intent.setComponent(new ComponentName(IPC.getPackageName(), componentName.getClassName()));
+                return false;
+            }
+        }
 
         // 仍然拿不到插件名？（例如从宿主中调用），则打开的Activity可能是宿主的。直接使用标准方式启动
         if (TextUtils.isEmpty(plugin)) {
@@ -233,8 +231,7 @@ public class PluginLibraryInternalProxy {
         if (Factory2.isDynamicClass(plugin, activity)) {
             intent.putExtra(IPluginManager.KEY_COMPATIBLE, true);
             intent.setComponent(new ComponentName(IPC.getPackageName(), activity));
-            context.startActivity(intent);
-            return true;
+            return false;
         }
 
         // 如果插件状态出现问题，则每次弹此插件的Activity都应提示无法使用，或提示升级（如有新版）
